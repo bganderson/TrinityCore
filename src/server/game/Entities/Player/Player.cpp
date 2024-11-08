@@ -2656,38 +2656,26 @@ bool Player::IsMaxLevel() const
 void Player::InitTalentForLevel()
 {
     uint8 level = GetLevel();
-    // talents base at level diff (talents = level - 9 but some can be used already)
-    if (level < 10)
+    if (level < sWorld->getIntConfig(CONFIG_MIN_DUALSPEC_LEVEL) || m_specsCount == 0)
     {
-        // Remove all talent points
-        if (m_usedTalentCount > 0)                           // Free any used talents
-        {
+        m_specsCount = 1;
+        m_activeSpec = 0;
+    }
+
+    uint32 talentPointsForLevel = CalculateTalentsPoints();
+
+    // if used more that have then reset
+    if (m_usedTalentCount > talentPointsForLevel)
+    {
+        if (!GetSession()->HasPermission(rbac::RBAC_PERM_SKIP_CHECK_MORE_TALENTS_THAN_ALLOWED))
             ResetTalents(true);
-            SetFreeTalentPoints(0);
-        }
-    }
-    else
-    {
-        if (level < sWorld->getIntConfig(CONFIG_MIN_DUALSPEC_LEVEL) || m_specsCount == 0)
-        {
-            m_specsCount = 1;
-            m_activeSpec = 0;
-        }
-
-        uint32 talentPointsForLevel = CalculateTalentsPoints();
-
-        // if used more that have then reset
-        if (m_usedTalentCount > talentPointsForLevel)
-        {
-            if (!GetSession()->HasPermission(rbac::RBAC_PERM_SKIP_CHECK_MORE_TALENTS_THAN_ALLOWED))
-                ResetTalents(true);
-            else
-                SetFreeTalentPoints(0);
-        }
-        // else update amount of free points
         else
-            SetFreeTalentPoints(talentPointsForLevel - m_usedTalentCount);
+            SetFreeTalentPoints(0);
     }
+    // else update amount of free points
+    else
+        SetFreeTalentPoints(talentPointsForLevel - m_usedTalentCount);
+
 
     if (!GetSession()->PlayerLoading())
         SendTalentsInfoData(false);                         // update at client
@@ -25303,7 +25291,7 @@ void Player::StoreLootItem(uint8 lootSlot, Loot* loot)
 // @tswow-begin change layout to attach event
 uint32 Player::CalculateTalentsPoints() const
 {
-    uint32 base_talent = GetLevel() < 10 ? 0 : GetLevel() - 9;
+    uint32 base_talent = GetLevel();
     uint32 out_talent;
 
     if (GetClass() != CLASS_DEATH_KNIGHT || GetMapId() != 609)
