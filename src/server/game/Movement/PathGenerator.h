@@ -21,6 +21,7 @@
 #include "MapDefines.h"
 #include "DetourNavMesh.h"
 #include "DetourNavMeshQuery.h"
+#include "DetourFilters.h"
 #include "MoveSplineInitArgs.h"
 #include <G3D/Vector3.h>
 
@@ -81,6 +82,12 @@ class TC_GAME_API PathGenerator
         // shortens the path until the destination is the specified distance from the target point
         void ShortenPathUntilDist(G3D::Vector3 const& point, float dist);
 
+        void Clear()
+        {
+            _polyLength = 0;
+            _pathPoints.clear();
+        }
+
     private:
 
         dtPolyRef _pathPolyRefs[MAX_PATH_LENGTH];   // array of detour polygon references
@@ -102,18 +109,13 @@ class TC_GAME_API PathGenerator
         dtNavMesh const* _navMesh;              // the nav mesh
         dtNavMeshQuery const* _navMeshQuery;    // the nav mesh query used to find the path
 
-        dtQueryFilter _filter;  // use single filter for all movements, update it when needed
+        //dtQueryFilter _filter;  // use single filter for all movements, update it when needed
+        dtCustomCostQueryFilter _filter;
 
         void SetStartPosition(G3D::Vector3 const& point) { _startPosition = point; }
         void SetEndPosition(G3D::Vector3 const& point) { _actualEndPosition = point; _endPosition = point; }
         void SetActualEndPosition(G3D::Vector3 const& point) { _actualEndPosition = point; }
         void NormalizePath();
-
-        void Clear()
-        {
-            _polyLength = 0;
-            _pathPoints.clear();
-        }
 
         bool InRange(G3D::Vector3 const& p1, G3D::Vector3 const& p2, float r, float h) const;
         float Dist3DSqr(G3D::Vector3 const& p1, G3D::Vector3 const& p2) const;

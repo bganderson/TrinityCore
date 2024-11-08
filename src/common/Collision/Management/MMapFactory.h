@@ -23,6 +23,7 @@
 #include "DetourAlloc.h"
 #include "DetourNavMesh.h"
 #include "DetourNavMeshQuery.h"
+#include "DetourFilters.h"
 #include <unordered_map>
 
 namespace MMAP

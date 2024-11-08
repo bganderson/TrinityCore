@@ -57,6 +57,39 @@ static bool PositionOkay(Unit* owner, Unit* target, Optional<float> minDistance,
     return true;
 }
 
+static Position const PredictPosition(Unit* target)
+{
+    Position pos = target->GetPosition();
+
+     // 0.5 - it's time (0.5 sec) between starting movement opcode (e.g. MSG_MOVE_START_FORWARD) and MSG_MOVE_HEARTBEAT sent by client
+    float speed = target->GetSpeed(Movement::SelectSpeedType(target->GetUnitMovementFlags())) * 0.5f;
+    float orientation = target->GetOrientation();
+
+    if (target->m_movementInfo.HasMovementFlag(MOVEMENTFLAG_FORWARD))
+    {
+        pos.m_positionX += cos(orientation) * speed;
+        pos.m_positionY += std::sin(orientation) * speed;
+    }
+    else if (target->m_movementInfo.HasMovementFlag(MOVEMENTFLAG_BACKWARD))
+    {
+        pos.m_positionX -= cos(orientation) * speed;
+        pos.m_positionY -= std::sin(orientation) * speed;
+    }
+
+    if (target->m_movementInfo.HasMovementFlag(MOVEMENTFLAG_STRAFE_LEFT))
+    {
+        pos.m_positionX += cos(orientation + M_PI / 2.f) * speed;
+        pos.m_positionY += std::sin(orientation + M_PI / 2.f) * speed;
+    }
+    else if (target->m_movementInfo.HasMovementFlag(MOVEMENTFLAG_STRAFE_RIGHT))
+    {
+        pos.m_positionX += cos(orientation - M_PI / 2.f) * speed;
+        pos.m_positionY += std::sin(orientation - M_PI / 2.f) * speed;
+    }
+
+    return pos;
+}
+
 static void DoMovementInform(Unit* owner, Unit* target)
 {
     if (owner->GetTypeId() != TYPEID_UNIT)
@@ -119,13 +152,26 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
         return true;
     }
 
-    bool const mutualChase = IsMutualChase(owner, target);
+    bool forceDest =
+        //(cOwner && (cOwner->isWorldBoss() || cOwner->IsDungeonBoss())) || // force for all bosses, even not in instances
+        (target->GetTypeId() == TYPEID_PLAYER && target->ToPlayer()->IsGameMaster()) || // for .npc follow
+        (owner->CanFly())
+        ;
+    bool mutualChase = IsMutualChase(owner, target);
+    bool const mutualTarget = target->GetVictim() == owner;
     float const hitboxSum = owner->GetCombatReach() + target->GetCombatReach();
     float const minRange = _range ? _range->MinRange + hitboxSum : CONTACT_DISTANCE;
     float const minTarget = (_range ? _range->MinTolerance : 0.0f) + hitboxSum;
     float const maxRange = _range ? _range->MaxRange + hitboxSum : owner->GetMeleeRange(target); // melee range already includes hitboxes
     float const maxTarget = _range ? _range->MaxTolerance + hitboxSum : CONTACT_DISTANCE + hitboxSum;
     Optional<ChaseAngle> angle = mutualChase ? Optional<ChaseAngle>() : _angle;
+
+    // Prevent almost infinite spinning of mutual targets.
+    if (angle && !mutualChase && _mutualChase && mutualTarget && minRange < maxRange)
+    {
+        angle = Optional<ChaseAngle>();
+        mutualChase = true;
+    }
 
     // periodically check if we're already in the expected range...
     _rangeCheckTimer.Update(diff);
@@ -175,11 +221,25 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             }
 
             // figure out which way we want to move
-            bool const moveToward = !owner->IsInDist(target, maxRange);
+            float x, y, z;
+            target->GetPosition(x, y, z);
+            bool withinRange = owner->IsInDist(target, maxRange);
+            bool withinLOS = owner->IsWithinLOS(x, y, z);
+            bool moveToward = !(withinRange && withinLOS);
 
             // make a new path if we have to...
             if (!_path || moveToward != _movingTowards)
                 _path = std::make_unique<PathGenerator>(owner);
+
+            // Predict chase destination to keep up with chase target
+            bool predictDestination = !mutualChase && target->isMoving();
+            if (predictDestination)
+            {
+                Position predicted = PredictPosition(target);
+                x = predicted.GetPositionX();
+                y = predicted.GetPositionY();
+                z = predicted.GetPositionZ();
+            }
 
             float x, y, z;
             bool shortenPath;
@@ -187,7 +247,7 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             if (moveToward && !angle)
             {
                 // ...we'll pathfind to the center, then shorten the path
-                target->GetPosition(x, y, z);
+                //target->GetPosition(x, y, z);
                 shortenPath = true;
             }
             else
@@ -200,7 +260,7 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             if (owner->IsHovering())
                 owner->UpdateAllowedPositionZ(x, y, z);
 
-            bool success = _path->CalculatePath(x, y, z, owner->CanFly());
+            bool success = _path->CalculatePath(x, y, z, forceDest);
             if (!success || (_path->GetPathType() & (PATHFIND_NOPATH /* | PATHFIND_INCOMPLETE*/)))
             {
                 if (cOwner)

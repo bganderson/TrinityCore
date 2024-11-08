@@ -3262,7 +3262,12 @@ bool Unit::isInBackInMap(Unit const* target, float distance, float arc) const
 
 bool Unit::isInAccessiblePlaceFor(Creature const* c) const
 {
-    if (IsInWater())
+    ZLiquidStatus liquidStatus = GetLiquidStatus();
+
+    bool isInWater = (liquidStatus & MAP_LIQUID_STATUS_IN_CONTACT) != 0;
+
+    // In water or jumping in water
+    if (isInWater || (liquidStatus == LIQUID_MAP_ABOVE_WATER && (IsFalling() || (ToPlayer() && ToPlayer()->IsFalling()))))
         return c->CanEnterWater();
     else
         return c->CanWalk() || c->CanFly();
@@ -8744,24 +8749,17 @@ void Unit::UpdateSpeed(UnitMoveType mtype)
         default:
             break;
     }
-
+    int32 healthSlow = 0;
     if (Creature* creature = ToCreature())
     {
-        if (creature->HasUnitTypeMask(UNIT_MASK_MINION) && !creature->IsInCombat())
-        {
-            if (GetMotionMaster()->GetCurrentMovementGeneratorType() == FOLLOW_MOTION_TYPE)
-            {
-                Unit* followed = ASSERT_NOTNULL(dynamic_cast<AbstractFollower*>(GetMotionMaster()->GetCurrentMovementGenerator()))->GetTarget();
-                if (followed && followed->GetGUID() == GetOwnerGUID() && !followed->IsInCombat())
-                {
-                    float ownerSpeed = followed->GetSpeedRate(mtype);
-                    if (speed < ownerSpeed || creature->IsWithinDist3d(followed, 10.0f))
-                        speed = ownerSpeed;
-                    speed *= std::min(std::max(1.0f, 0.75f + (GetDistance(followed) - PET_FOLLOW_DIST) * 0.05f), 1.3f);
-                }
-            }
+        uint32 immuneMask = creature->GetCreatureTemplate()->MechanicImmuneMask;
+        if (!IsPet() && !(IsControlledByPlayer() && IsVehicle()) && !(immuneMask & (1 << (MECHANIC_SNARE - 1))) && !(creature->IsDungeonBoss())) {
+            healthSlow = (int32) std::min(0.0f, (1.66f * (GetHealthPct() - 30.0f)));
         }
     }
+
+    if (healthSlow)
+        AddPct(speed, healthSlow);
 
     // Apply strongest slow aura mod to speed
     int32 slow = GetMaxNegativeAuraModifier(SPELL_AURA_MOD_DECREASE_SPEED);
@@ -8780,6 +8778,11 @@ void Unit::UpdateSpeed(UnitMoveType mtype)
     }
 
     SetSpeedRate(mtype, speed);
+}
+
+float Unit::GetSpeedInMotion() const
+{
+    return (movespline->Finalized() ? GetSpeed(Movement::SelectSpeedType(GetUnitMovementFlags())) : movespline->Velocity());
 }
 
 float Unit::GetSpeed(UnitMoveType mtype) const
