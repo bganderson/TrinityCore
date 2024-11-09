@@ -241,7 +241,6 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
                 z = predicted.GetPositionZ();
             }
 
-            float x, y, z;
             bool shortenPath;
             // if we want to move toward the target and there's no fixed angle...
             if (moveToward && !angle)
