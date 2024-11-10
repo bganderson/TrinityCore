@@ -1745,12 +1745,14 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             return true;
         }
 
-        if (!(options & TELE_TO_NOT_UNSUMMON_PET))
-        {
-            //same map, only remove pet if out of range for new position
-            if (pet && !pet->IsWithinDist3d(x, y, z, GetMap()->GetVisibilityRange()))
-                UnsummonPetTemporaryIfAny();
-        }
+        // if (!(options & TELE_TO_NOT_UNSUMMON_PET))
+        // {
+        //     //same map, only remove pet if out of range for new position
+        //     if (pet && !pet->IsWithinDist3d(x, y, z, GetMap()->GetVisibilityRange()))
+        //         UnsummonPetTemporaryIfAny();
+        // }
+        if (pet && !pet->IsWithinDist3d(x, y, z, 50.0f))
+            UnsummonPetTemporaryIfAny();
 
         if (!IsAlive() && options & TELE_REVIVE_AT_TELEPORT)
             ResurrectPlayer(0.5f);
@@ -2182,14 +2184,16 @@ void Player::RegenerateHealth()
             addValue += GetTotalAuraModifier(SPELL_AURA_MOD_REGEN) * 0.4f;
         }
         else if (HasAuraType(SPELL_AURA_MOD_REGEN_DURING_COMBAT))
-            ApplyPct(addValue, GetTotalAuraModifier(SPELL_AURA_MOD_REGEN_DURING_COMBAT));
+            //ApplyPct(addValue, GetTotalAuraModifier(SPELL_AURA_MOD_REGEN_DURING_COMBAT));
+            addValue *= GetTotalAuraModifier(SPELL_AURA_MOD_REGEN_DURING_COMBAT) / 100.0f;
 
         if (!IsStandState())
             addValue *= 1.5f;
     }
 
     // always regeneration bonus (including combat)
-    addValue += GetTotalAuraModifier(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT);
+    //addValue += GetTotalAuraModifier(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT);
+    addValue += (GetTotalAuraModifier(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT) / 5.0f);
     addValue += m_baseHealthRegen / 2.5f;
 
     if (addValue < 0.0f)
@@ -21663,6 +21667,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     }
 
     // Prepare to flight start now
+    UnsummonPetTemporaryIfAny();
 
     // stop combat at start taxi flight if any
     CombatStop();

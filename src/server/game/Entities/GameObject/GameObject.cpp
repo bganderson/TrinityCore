@@ -2070,6 +2070,15 @@ void GameObject::Use(Unit* user)
                 if (owner)
                     owner->FinishSpell(CURRENT_CHANNELED_SPELL);
 
+                if (info->summoningRitual.animSpell)
+                {
+                    for (auto it = m_unique_users.begin(); it != m_unique_users.end(); ++it)
+                    {
+                        if (Player* target = ObjectAccessor::GetPlayer(*this, *it))
+                            target->FinishSpell(CURRENT_CHANNELED_SPELL);
+                    }
+                }
+
                 // can be deleted now, if
                 if (!info->summoningRitual.ritualPersistent)
                     SetLootState(GO_JUST_DEACTIVATED);
@@ -2095,12 +2104,29 @@ void GameObject::Use(Unit* user)
 
             if (info->spellcaster.partyOnly)
             {
-                Unit* caster = GetOwner();
-                if (!caster || caster->GetTypeId() != TYPEID_PLAYER)
+                // Unit* caster = GetOwner();
+                // if (!caster || caster->GetTypeId() != TYPEID_PLAYER)
+                //     return;
+
+                // if (user->GetTypeId() != TYPEID_PLAYER || !user->ToPlayer()->IsInSameRaidWith(caster->ToPlayer()))
+                //     return;
+                ObjectGuid ownerGuid = GetOwnerGUID();
+                if (!ownerGuid || !ownerGuid.IsPlayer())
                     return;
 
-                if (user->GetTypeId() != TYPEID_PLAYER || !user->ToPlayer()->IsInSameRaidWith(caster->ToPlayer()))
+                if (user->GetTypeId() != TYPEID_PLAYER)
                     return;
+
+                if (Group* group = user->ToPlayer()->GetGroup())
+                {
+                    if (! group->IsMember(ownerGuid))
+                        return;
+                }
+                else
+                {
+                    if (ownerGuid != user->GetGUID())
+                        return;
+                }
             }
 
             user->RemoveAurasByType(SPELL_AURA_MOUNTED);
