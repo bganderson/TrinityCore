@@ -1805,20 +1805,39 @@ void Unit::HandleEmoteCommand(Emote emoteId)
 
     // level-based resistance does not apply to binary spells, and cannot be overcome by spell penetration
     // gameobject caster -- should it have level based resistance?
+    // Minimum level for resistance calcs is 20, anyone below level 20 is considered level 20
     if (caster && caster->GetTypeId() != TYPEID_GAMEOBJECT && (!spellInfo || !spellInfo->HasAttribute(SPELL_ATTR0_CU_BINARY_SPELL)))
-        victimResistance += std::max((float(victim->GetLevelForTarget(caster)) - float(caster->GetLevelForTarget(victim))) * 5.0f, 0.0f);
+        victimResistance += std::max((std::max(float(victim->GetLevelForTarget(caster)),20.0f) - std::max(float(caster->GetLevelForTarget(victim)),20.0f)) * 5.0f, 0.0f);
 
-    static uint32 const BOSS_LEVEL = 83;
-    static float const BOSS_RESISTANCE_CONSTANT = 510.0f;
-    uint32 level = victim->GetLevel();
-    float resistanceConstant = 0.0f;
+    // static uint32 const BOSS_LEVEL = 83;
+    // static float const BOSS_RESISTANCE_CONSTANT = 510.0f;
+    // uint32 level = victim->GetLevel();
+    // float resistanceConstant = 0.0f;
 
-    if (level == BOSS_LEVEL)
-        resistanceConstant = BOSS_RESISTANCE_CONSTANT;
+    // if (level == BOSS_LEVEL)
+    //     resistanceConstant = BOSS_RESISTANCE_CONSTANT;
+    // else
+    //     resistanceConstant = level * 5.0f;
+
+    uint32 level = 0;
+    if (caster && caster->GetTypeId() != TYPEID_GAMEOBJECT)
+        level = std::max(caster->ToUnit()->GetLevel(), uint8(20));
     else
-        resistanceConstant = level * 5.0f;
+        level = std::max(victim->GetLevel(), uint8(20));
+    float resistanceConstant = level * 5.0f;
 
-    return victimResistance / (victimResistance + resistanceConstant);
+    // If resistance is lower than 20% of cap, formula (tweaked from 1.12 base) is slightly different to make the first few points more impactful
+    if (victimResistance < (resistanceConstant * 0.2))
+        return 0.75 * (victimResistance / resistanceConstant) + (resistanceConstant * 0.2 - victimResistance) * 0.0002;
+    // Else, if resistance is below 2/3rds of cap, use the 1.12 formula
+    else if (victimResistance < (resistanceConstant * 0.6666))
+        return 0.75 * (victimResistance / resistanceConstant);
+    // Else, if above the resistance cap, always return the value of the cap
+    else if (victimResistance > resistanceConstant)
+        return 0.75 * (resistanceConstant / resistanceConstant);
+    // Finally, else, use the above 2/3rds of cap 1.12 formula
+    else
+        return 0.5625 * (victimResistance / resistanceConstant) + 0.125;
 }
 
 /*static*/ void Unit::CalcAbsorbResist(DamageInfo& damageInfo, Spell* spell /*= nullptr*/)
