@@ -2104,12 +2104,29 @@ void GameObject::Use(Unit* user)
 
             if (info->spellcaster.partyOnly)
             {
-                Unit* caster = GetOwner();
-                if (!caster || caster->GetTypeId() != TYPEID_PLAYER)
+                // Unit* caster = GetOwner();
+                // if (!caster || caster->GetTypeId() != TYPEID_PLAYER)
+                //     return;
+
+                // if (user->GetTypeId() != TYPEID_PLAYER || !user->ToPlayer()->IsInSameRaidWith(caster->ToPlayer()))
+                //     return;
+                ObjectGuid ownerGuid = GetOwnerGUID();
+                if (!ownerGuid || !ownerGuid.IsPlayer())
                     return;
 
-                if (user->GetTypeId() != TYPEID_PLAYER || !user->ToPlayer()->IsInSameRaidWith(caster->ToPlayer()))
+                if (user->GetTypeId() != TYPEID_PLAYER)
                     return;
+
+                if (Group* group = user->ToPlayer()->GetGroup())
+                {
+                    if (! group->IsMember(ownerGuid))
+                        return;
+                }
+                else
+                {
+                    if (ownerGuid != user->GetGUID())
+                        return;
+                }
             }
 
             user->RemoveAurasByType(SPELL_AURA_MOUNTED);
