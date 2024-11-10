@@ -3173,11 +3173,11 @@ uint32 SpellInfo::CalcCastTime(Spell* spell /*= nullptr*/) const
 
     int32 castTime = CastTimeEntry->Base;
 
-    if (spell)
-        spell->GetCaster()->ModSpellCastTime(this, castTime, spell);
-
     if (HasAttribute(SPELL_ATTR0_REQ_AMMO) && (!IsAutoRepeatRangedSpell()))
         castTime += 500;
+
+    if (spell)
+        spell->GetCaster()->ModSpellCastTime(this, castTime, spell);
 
     return (castTime > 0) ? uint32(castTime) : 0;
 }
