@@ -3267,7 +3267,7 @@ bool Unit::isInAccessiblePlaceFor(Creature const* c) const
     bool isInWater = (liquidStatus & MAP_LIQUID_STATUS_IN_CONTACT) != 0;
 
     // In water or jumping in water
-    if (isInWater || (liquidStatus == LIQUID_MAP_ABOVE_WATER && (IsFalling() || (ToPlayer() && ToPlayer()->IsFalling()))))
+    if (isInWater || (liquidStatus == LIQUID_MAP_ABOVE_WATER && IsFalling()))
         return c->CanEnterWater();
     else
         return c->CanWalk() || c->CanFly();
@@ -8725,8 +8725,12 @@ void Unit::UpdateSpeed(UnitMoveType mtype)
         case MOVE_FLIGHT:
         {
             // Set creature speed rate
-            if (GetTypeId() == TYPEID_UNIT)
-                speed *= ToCreature()->GetCreatureTemplate()->speed_run;    // at this point, MOVE_WALK is never reached
+            if (GetTypeId() == TYPEID_UNIT) {
+                if (!IsHunterPet())
+                    speed *= ToCreature()->GetCreatureTemplate()->speed_run;    // at this point, MOVE_WALK is never reached
+                else
+                    speed *= 1.14286f; // Is there a smarter way?
+            }
 
             // Normalize speed by 191 aura SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED if need
             /// @todo possible affect only on MOVE_RUN
