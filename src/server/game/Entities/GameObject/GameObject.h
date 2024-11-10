@@ -54,6 +54,11 @@ union GameObjectValue
     {
         uint32 MaxOpens;
     } FishingHole;
+    //3 GAMEOBJECT_TYPE_CHEST
+    struct
+    {
+        uint32 MaxUses;
+    } Chest;
     //29 GAMEOBJECT_TYPE_CAPTURE_POINT
     struct
     {
